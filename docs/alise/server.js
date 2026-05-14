@@ -1,4 +1,4 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 const express = require('express');
 const multer = require('multer');
 const pdf = require('pdf-parse');
@@ -163,7 +163,7 @@ async function textToSpeech(text) {
       : { stability: 0.5, similarity_boost: 0.75 },
   };
 
-  if (languageCode !== 'lv' && languageCode !== 'hy') {
+  if (languageCode !== 'lv') {
     requestBody.language_code = languageCode;
   }
 
@@ -227,12 +227,15 @@ const HISTORY_LIMIT = 40; // max ziņu skaits (20 apmaiņas)
 // POST /api/ask — Claude atbild, ElevenLabs nolasa
 app.post('/api/ask', express.json(), async (req, res) => {
   const { text, currentText } = req.body;
+  console.log('[/api/ask] Saņemts:', JSON.stringify(text));
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Nav jautājuma teksta.' });
   }
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    console.log('[/api/ask] ANTHROPIC_API_KEY pieejama:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('[/api/ask] ELEVENLABS_API_KEY pieejama:', !!process.env.ELEVENLABS_API_KEY);
 
     const contextBlock = currentText?.trim()
       ? `\n\nTekošais teksts seminārā (no Diogenes):\n"${currentText.trim()}"\n\nJa tekošais teksts ir pieejams, tas ir fragments ko seminārā tikko izlasīja vai izcēla. Reaģē uz to kā dalībnieks kas tikko dzirdēja šo fragmentu — vari to komentēt, tulkot vai jautāt par to.`
@@ -266,11 +269,14 @@ Seminārā tiek lasīta viena izraudzīta grāmata secīgi teikumu pēc teikuma.
     });
 
     const answer = message.content[0].text;
+    console.log('[/api/ask] Claude atbilde:', answer.slice(0, 80));
 
     // Saglabā Alises atbildi vēsturē
     conversationHistory.push({ role: 'assistant', content: answer });
 
+    console.log('[/api/ask] Sūta uz ElevenLabs...');
     const audioBuffer = await textToSpeech(answer);
+    console.log('[/api/ask] Audio saņemts:', audioBuffer.length, 'bytes');
 
     emitSpeaking(answer, audioBuffer);
     res.set('Content-Type', 'audio/mpeg');
